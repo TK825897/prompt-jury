@@ -4,6 +4,67 @@
 
 Prompt Jury 是一款 Chrome / Edge Manifest V3 浏览器扩展。当前 MVP 已完成 Step 1～Step 6：项目骨架、完整消息链路、四个平台 Adapter、Evaluation Run、本地历史、导出、匿名 Judge 与综合答案。
 
+## 目前功能
+
+- 自动检测已打开并登录的 ChatGPT、Gemini、Kimi 和豆包标签页；
+- 一次输入 Prompt，并行发送到任意多个已选择的平台；
+- 独立跟踪每个平台的生成状态，单个平台失败或超时不会中断其他平台；
+- 提取各平台本轮最新回答，并在 Side Panel 中统一展示；
+- 将 Prompt、回答、耗时和失败信息保存为本地 Evaluation Run；
+- 查看和删除历史运行，或将完整结果导出为 Markdown、JSON；
+- 使用用户配置的 OpenAI-compatible API 匿名评审候选回答；
+- 展示评分、排名、优缺点、风险、共识和分歧；
+- 按“最优综合版”“修正最佳回答”或“保留分歧版”生成并分别保存综合答案。
+
+## 安装后的使用指南
+
+### 1. 准备模型页面
+
+分别打开需要比较的平台并完成登录。Prompt Jury 支持：
+
+- ChatGPT：`https://chatgpt.com/`；
+- Gemini：`https://gemini.google.com/app`；
+- Kimi：`https://www.kimi.com/` 或 `https://kimi.moonshot.cn/`；
+- 豆包：`https://www.doubao.com/`。
+
+如果模型页面早于扩展安装或更新打开，请刷新模型页面，使 Content Script 重新注入。模型生成过程中应保持对应标签页打开。
+
+### 2. 收集多个模型的回答
+
+1. 点击浏览器工具栏中的 Prompt Jury 图标，打开 Side Panel；
+2. 检查 Provider 列表，需要使用的平台应显示为可选状态；
+3. 勾选至少两个平台；
+4. 在 Prompt 输入框中输入一次问题；
+5. 点击“发送到所选模型”；
+6. 等待各平台完成，回答会依次显示在同一个 Evaluation Run 中。
+
+如果 Provider 显示 `not_open`，请打开并登录对应平台后点击“重新检测”。如果显示 `error`，请查看平台下方的错误详情，并优先尝试刷新模型页面和重新加载扩展。
+
+### 3. 查看历史与导出
+
+- 点击顶部“历史”查看本机保存的 Evaluation Run；
+- 点击某条历史记录可恢复其 Prompt、回答、Judge 结果和综合答案；
+- 在 Evaluation Run 区域点击“Markdown”或“JSON”下载完整结果；
+- 不再需要的记录可从历史列表中删除。
+
+### 4. 配置 AI Judge
+
+1. 在 Side Panel 的“AI Judge”区域点击“设置”；
+2. 填写 OpenAI-compatible API 的 Base URL 或完整 Chat Completions URL；
+3. 填写 API Key、Model、Temperature 和 Max Tokens；
+4. 根据需要调整六项评分权重，并确保总和为 100%；
+5. 点击“保存 Judge 配置”，并允许扩展访问该 API 地址。
+
+Judge 配置保存在浏览器本地。API Key 不会写入运行历史或导出文件；运行 Judge 或生成综合答案时，当前 Prompt 和候选回答会发送到用户配置的 API。
+
+### 5. 运行评审与生成综合答案
+
+1. 确保当前 Evaluation Run 至少成功收集两个回答；
+2. 点击“运行 Judge”，等待匿名评审完成；
+3. 查看各回答的排名、评分、优缺点、风险、共识和分歧；
+4. 选择一种综合方式并点击“生成综合答案”；
+5. 可以依次生成不同方式的综合答案，已有结果不会被覆盖，并会随当前运行一同保存在本地。
+
 ## 开发
 
 需要 Node.js 20+ 和 npm。
