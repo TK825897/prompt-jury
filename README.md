@@ -1,6 +1,6 @@
 # Prompt Jury
 
-English | [简体中文](README_ZH.md)
+English | [中文版](README_ZH.md)
 
 > Compare multiple LLM responses, judge the differences, and synthesize the best answer.
 
@@ -19,6 +19,21 @@ Prompt Jury is a Chrome / Edge Manifest V3 browser extension. The current MVP in
 - Displays scores, rankings, strengths, weaknesses, risks, consensus, and disagreements;
 - Generates and separately saves three synthesis variants: Best Integrated Answer, Repair Best Answer, and Preserve Disagreements.
 
+## Install Locally
+
+Prompt Jury is not yet available in the Chrome Web Store or Microsoft Edge Add-ons. For now, install it locally as an unpacked extension:
+
+1. Install [Node.js 20 or later](https://nodejs.org/) and npm;
+2. Clone or download this repository;
+3. Open a terminal in the project directory and run `npm install`;
+4. Run `npm run build` to generate the `dist` directory;
+5. Open `chrome://extensions/` in Chrome or `edge://extensions/` in Edge;
+6. Enable **Developer mode**;
+7. Click **Load unpacked** and select the generated `dist` directory;
+8. Pin Prompt Jury to the browser toolbar.
+
+After rebuilding or updating the source, reload Prompt Jury from the extension management page and refresh any already-open LLM tabs.
+
 ## User Guide
 
 ### 1. Prepare the LLM pages
@@ -35,38 +50,38 @@ If an LLM page was already open before the extension was installed or updated, r
 ### 2. Collect responses from multiple LLMs
 
 1. Click the Prompt Jury icon in the browser toolbar to open the Side Panel;
-2. On first use, the extension follows the browser UI language. Click `English` or `中文` in the upper-right corner to switch manually;
+2. On first use, the extension follows the browser UI language. Use the language button in the upper-right corner to switch manually;
 3. Check the Provider list and make sure the platforms you want to use are available for selection;
 4. Select at least two platforms;
 5. Enter your question once in the Prompt field;
-6. Click **Send to selected models** (`发送到所选模型`);
+6. Click **Send to selected models**;
 7. Wait for the platforms to finish. Their responses will appear in the same Evaluation Run as they complete.
 
-If a Provider shows `not_open`, open and sign in to that platform, then click **Detect again** (`重新检测`). If it shows `error`, review the details below the Provider and first try refreshing the LLM page and reloading the extension.
+If a Provider shows `not_open`, open and sign in to that platform, then click **Detect again**. If it shows `error`, review the details below the Provider and first try refreshing the LLM page and reloading the extension.
 
 ### 3. View history and export results
 
-- Click **History** (`历史`) at the top to view Evaluation Runs saved on this device;
+- Click **History** at the top to view Evaluation Runs saved on this device;
 - Open a history entry to restore its prompt, responses, Judge result, and synthesized answers;
 - Click **Markdown** or **JSON** in the Evaluation Run section to download the complete result;
 - Delete runs you no longer need from the history list.
 
 ### 4. Configure the AI Judge
 
-1. Click **Settings** (`设置`) in the **AI Judge** section of the Side Panel;
+1. Click **Settings** in the **AI Judge** section of the Side Panel;
 2. Enter the Base URL or full Chat Completions URL of an OpenAI-compatible API;
 3. Enter the API Key, Model, Temperature, and Max Tokens;
 4. Adjust the six scoring weights if needed, keeping their total at 100%;
-5. Click **Save Judge configuration** (`保存 Judge 配置`) and allow the extension to access the API address.
+5. Click **Save Judge configuration** and allow the extension to access the API address.
 
 The Judge configuration is stored locally in the browser. The API Key is never written to run history or export files. When you run the Judge or generate a synthesized answer, the current prompt and candidate responses are sent to the API you configured.
 
 ### 5. Run the Judge and synthesize an answer
 
 1. Make sure the current Evaluation Run contains at least two successfully collected responses;
-2. Click **Run Judge** (`运行 Judge`) and wait for the anonymous evaluation to finish;
+2. Click **Run Judge** and wait for the anonymous evaluation to finish;
 3. Review each response's ranking, scores, strengths, weaknesses, risks, consensus, and disagreements;
-4. Select a synthesis mode and click **Generate synthesized answer** (`生成综合答案`);
+4. Select a synthesis mode and click **Generate synthesized answer**;
 5. You can generate each synthesis mode in turn. Existing results are not overwritten and remain stored locally with the current run.
 
 ## Development
@@ -84,16 +99,7 @@ npm run typecheck
 
 `npm run dev` starts Vite in watch mode. Changes to the Manifest or extension entry points may require reloading the extension from the browser's extension management page.
 
-## Local Installation
-
-1. Run `npm install`;
-2. Run `npm run build`;
-3. Open `chrome://extensions/` in Chrome or `edge://extensions/` in Edge;
-4. Enable Developer mode;
-5. Click **Load unpacked**;
-6. Select the generated `dist` directory;
-7. Pin the extension, then open and sign in to ChatGPT, Gemini, Kimi, or Doubao;
-8. Click the extension icon to open the Side Panel.
+## Compatibility Notes
 
 If a platform page was already open before the extension was installed, refresh it so the Content Script can be injected.
 
@@ -120,7 +126,7 @@ ChatGPT web-search responses may render citations first and append the main text
 
 Open a ChatGPT tab, enter any text in the Side Panel, and click **Mock**. The request travels from the Side Panel to the Background Service Worker, then to the Content Script, and back through the same path. Mock mode does not submit text to ChatGPT.
 
-Select one or more platforms and click **Send to selected models** (`发送到所选模型`) to invoke their adapters in parallel. A failure on one platform does not interrupt the others. Selectors for each platform are maintained in its corresponding `src/adapters/*-adapter.ts` file.
+Select one or more platforms and click **Send to selected models** to invoke their adapters in parallel. A failure on one platform does not interrupt the others. Selectors for each platform are maintained in its corresponding `src/adapters/*-adapter.ts` file.
 
 ## Architecture
 

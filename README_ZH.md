@@ -19,6 +19,21 @@ Prompt Jury 是一款 Chrome / Edge Manifest V3 浏览器扩展。当前 MVP 已
 - 展示评分、排名、优缺点、风险、共识和分歧；
 - 按“最优综合版”“修正最佳回答”或“保留分歧版”生成并分别保存综合答案。
 
+## 本地安装
+
+Prompt Jury 尚未上架 Chrome 应用商店或 Microsoft Edge 加载项商店，目前需要通过“加载已解压的扩展程序”在本地安装：
+
+1. 安装 [Node.js 20 或更高版本](https://nodejs.org/) 和 npm；
+2. 克隆或下载本仓库；
+3. 在项目目录打开终端并执行 `npm install`；
+4. 执行 `npm run build`，生成 `dist` 目录；
+5. Chrome 打开 `chrome://extensions/`，Edge 打开 `edge://extensions/`；
+6. 开启“开发者模式”；
+7. 点击“加载已解压的扩展程序”，选择生成的 `dist` 目录；
+8. 将 Prompt Jury 固定到浏览器工具栏。
+
+重新构建或更新代码后，请在扩展管理页面重新加载 Prompt Jury，并刷新已经打开的模型标签页。
+
 ## 安装后的使用指南
 
 ### 1. 准备模型页面
@@ -84,16 +99,7 @@ npm run typecheck
 
 `npm run dev` 启动 Vite 监听构建。修改 Manifest 或扩展入口后，可能需要在扩展管理页重新加载。
 
-## 本地安装
-
-1. 执行 `npm install`；
-2. 执行 `npm run build`；
-3. Chrome 打开 `chrome://extensions/`（Edge 打开 `edge://extensions/`）；
-4. 开启开发者模式；
-5. 点击“加载已解压的扩展程序”；
-6. 选择项目生成的 `dist` 目录；
-7. 固定扩展，打开并登录 ChatGPT、Gemini、Kimi 或豆包；
-8. 点击扩展图标打开 Side Panel。
+## 兼容性说明
 
 已经打开的平台页面若早于扩展安装，需要刷新一次，使 Content Script 注入页面。
 
