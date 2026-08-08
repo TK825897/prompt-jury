@@ -4,6 +4,8 @@ body { margin: 0; min-width: 320px; }
 main { display: grid; gap: 14px; padding: 18px; }
 nav { display: flex; gap: 8px; }
 header { padding: 10px 4px; }
+.header-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.language-toggle { padding: 6px 9px; font-size: 11px; }
 h1 { margin: 3px 0 7px; font-size: 25px; letter-spacing: -0.04em; }
 h2 { margin: 0; font-size: 14px; }
 p { margin: 0; color: #667068; }

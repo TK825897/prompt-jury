@@ -6,10 +6,20 @@ import { anonymizeResponses } from "../judge/anonymize";
 import { loadJudgeConfig } from "../judge/config";
 import { runJudge, runSynthesis } from "../judge/judge-client";
 import type { AnonymousAnswer } from "../judge/prompts";
+import { useUiLanguage, type MessageKey } from "../i18n";
 import { deleteRun, getRunBundle, listRuns, saveRunBundle } from "../storage/db";
 import type { EvaluationBundle, EvaluationRun, ProviderRunResult, ResponseDocument } from "../storage/types";
 
-const providerNames = { mock: "Mock", chatgpt: "ChatGPT", gemini: "Gemini", kimi: "Kimi", doubao: "豆包" } as const;
+const providerNames = { mock: "Mock", chatgpt: "ChatGPT", gemini: "Gemini", kimi: "Kimi", doubao: "Doubao" } as const;
+
+function statusKey(status: string): MessageKey | undefined {
+  const keys: Record<string, MessageKey> = {
+    not_open: "status_not_open", ready: "status_ready", error: "status_error", login_required: "status_login_required",
+    sending: "status_sending", generating: "status_generating", completed: "status_completed", timeout: "status_timeout",
+    failed: "status_failed", running: "status_running", partial: "status_partial",
+  };
+  return keys[status];
+}
 
 function isPageStates(data: unknown): data is PageState[] { return Array.isArray(data); }
 function isResponse(data: unknown): data is NormalizedResponse { return typeof data === "object" && data !== null && "contentText" in data; }
@@ -25,6 +35,7 @@ function toDocument(response: NormalizedResponse, runId: string, startedAt: stri
 }
 
 export function App() {
+  const { language, t, toggleLanguage } = useUiLanguage();
   const [pages, setPages] = useState<PageState[]>([]);
   const [prompt, setPrompt] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
@@ -49,8 +60,8 @@ export function App() {
         setPages(detectedPages);
         setSelected((current) => current.filter((tabId) => detectedPages.some((page) => page.tabId === tabId)));
       }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "检测失败"); }
-  }, []);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : t("detectFailed")); }
+  }, [t]);
 
   useEffect(() => { void detect(); void refreshHistory(); }, [detect, refreshHistory]);
 
@@ -70,7 +81,7 @@ export function App() {
       await saveRunBundle(initialBundle);
     } catch (reason) {
       setBusy(false);
-      setError(`无法创建本地运行记录：${reason instanceof Error ? reason.message : "IndexedDB 写入失败"}`);
+      setError(`${t("createRunFailed")}: ${reason instanceof Error ? reason.message : t("dbWriteFailed")}`);
       return;
     }
 
@@ -83,14 +94,14 @@ export function App() {
         if (!page.tabId) throw new Error("missing tab id");
         const result = await sendMessage({ type: mock ? "MOCK_ROUNDTRIP" : "SEND_PROMPT", tabId: page.tabId, prompt });
         if (!result.ok) throw new Error(result.error);
-        if (!isResponse(result.data)) throw new Error("返回的数据类型不正确");
+        if (!isResponse(result.data)) throw new Error(t("invalidResponse"));
         const durationMs = Date.now() - startedMs;
         const response = toDocument(result.data, runId, startedAt, durationMs);
         setBundle((current) => current ? { ...current, responses: [...current.responses, response] } : current);
         setProviderProgress((current) => ({ ...current, [providerId]: "completed" }));
         return { response, result: { providerId, status: "completed", durationMs } };
       } catch (reason) {
-        const message = reason instanceof Error ? reason.message : "未知错误";
+        const message = reason instanceof Error ? reason.message : t("unknownError");
         const status = /timed out|timeout/i.test(message) ? "timeout" : "failed";
         setProviderProgress((current) => ({ ...current, [providerId]: status }));
         return { result: { providerId, status, durationMs: Date.now() - startedMs, errorMessage: message } };
@@ -113,7 +124,7 @@ export function App() {
       await saveRunBundle(finalBundle);
       await refreshHistory();
     } catch (reason) {
-      setError((current) => `${current ? `${current}；` : ""}本地保存失败：${reason instanceof Error ? reason.message : "IndexedDB 写入失败"}`);
+      setError((current) => `${current ? `${current}; ` : ""}${t("localSaveFailed")}: ${reason instanceof Error ? reason.message : t("dbWriteFailed")}`);
     }
   }
 
@@ -136,14 +147,14 @@ export function App() {
 
   async function judgeCurrentRun() {
     if (!bundle || bundle.responses.length < 2) return;
-    setJudgeBusy(true); setError(""); setJudgeMessage("正在读取 Judge 配置…");
+    setJudgeBusy(true); setError(""); setJudgeMessage(t("readingJudge"));
     try {
       const config = await loadJudgeConfig();
-      if (!config.apiKey || !config.model) throw new Error("请先在 Judge 设置中配置 API Key 和 Model。");
-      setJudgeMessage(`正在调用 ${config.model} 进行匿名评审…`);
+      if (!config.apiKey || !config.model) throw new Error(t("configureJudge"));
+      setJudgeMessage(t("callingJudge", { model: config.model }));
       const anonymous = anonymizeResponses(bundle.responses);
       const judged = await runJudge(config, bundle.run.prompt, anonymous.answers);
-      setJudgeMessage("评审完成，正在保存本地结果…");
+      setJudgeMessage(t("savingJudge"));
       const next: EvaluationBundle = {
         ...bundle,
         judgeResult: {
@@ -151,10 +162,10 @@ export function App() {
           rawJson: judged.raw, result: judged.result, createdAt: new Date().toISOString(),
         },
       };
-      setBundle(next); await saveRunBundle(next); setJudgeMessage("Judge 已完成并保存。");
+      setBundle(next); await saveRunBundle(next); setJudgeMessage(t("judgeSaved"));
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : "Judge 失败";
-      setError(message); setJudgeMessage(`Judge 失败：${message}`);
+      const message = reason instanceof Error ? reason.message : t("judgeFailed");
+      setError(message); setJudgeMessage(`${t("judgeFailed")}: ${message}`);
     }
     finally { setJudgeBusy(false); }
   }
@@ -169,47 +180,53 @@ export function App() {
 
   async function synthesizeCurrentRun() {
     if (!bundle?.judgeResult) return;
-    setJudgeBusy(true); setError(""); setJudgeMessage("正在生成综合答案…");
+    setJudgeBusy(true); setError(""); setJudgeMessage(t("generatingSynthesis"));
     try {
       const config = await loadJudgeConfig();
-      if (!config.apiKey || !config.model) throw new Error("请先配置 Judge API。");
+      if (!config.apiKey || !config.model) throw new Error(t("configureJudgeApi"));
       const content = await runSynthesis(config, synthesisMode, bundle.run.prompt, anonymousAnswersFromBundle(bundle), bundle.judgeResult.result);
       const answer = { id: makeId(), runId: bundle.run.id, mode: synthesisMode, content, createdAt: new Date().toISOString() } as const;
       const next: EvaluationBundle = { ...bundle, synthesizedAnswers: [...(bundle.synthesizedAnswers ?? []), answer] };
-      setBundle(next); await saveRunBundle(next); setJudgeMessage("综合答案已生成并保存。");
+      setBundle(next); await saveRunBundle(next); setJudgeMessage(t("synthesisSaved"));
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : "综合答案生成失败";
-      setError(message); setJudgeMessage(`综合答案失败：${message}`);
+      const message = reason instanceof Error ? reason.message : t("synthesisFailed");
+      setError(message); setJudgeMessage(`${t("synthesisFailed")}: ${message}`);
     }
     finally { setJudgeBusy(false); }
   }
 
   const available = pages.some((page) => page.tabId !== undefined);
+  const locale = language === "zh" ? "zh-CN" : "en-US";
+  const labelStatus = (status: string) => {
+    const key = statusKey(status);
+    return key ? t(key) : status;
+  };
+  const modeName = (mode: "best" | "repair" | "disagreements") => t(mode === "disagreements" ? "preserve" : mode);
   return <main>
-    <header><p className="eyebrow">MVP · Step 1–6 · v{chrome.runtime.getManifest().version}</p><h1>Prompt Jury</h1><p>Compare multiple LLM responses, judge the differences, and synthesize the best answer.</p></header>
-    <nav><button className={view === "run" ? "" : "quiet"} onClick={() => setView("run")}>运行</button><button className={view === "history" ? "" : "quiet"} onClick={() => setView("history")}>历史 ({history.length})</button></nav>
-    {view === "history" ? <section><div className="section-title"><h2>历史运行</h2><button className="quiet" onClick={() => void refreshHistory()}>刷新</button></div>
-      {history.length === 0 ? <p className="muted">暂无本地记录。</p> : history.map((run) => <article className="history-item" key={run.id}><button className="history-open" onClick={() => void openHistory(run.id)}><strong>{run.prompt.slice(0, 60)}</strong><span>{new Date(run.createdAt).toLocaleString()} · {run.status}</span></button><button className="danger" onClick={() => void removeHistory(run.id)}>删除</button></article>)}
+    <header><div className="header-tools"><p className="eyebrow">MVP · Step 1–6 · v{chrome.runtime.getManifest().version}</p><button className="quiet language-toggle" onClick={toggleLanguage}>{t("languageName")}</button></div><h1>Prompt Jury</h1><p>Compare multiple LLM responses, judge the differences, and synthesize the best answer.</p></header>
+    <nav><button className={view === "run" ? "" : "quiet"} onClick={() => setView("run")}>{t("run")}</button><button className={view === "history" ? "" : "quiet"} onClick={() => setView("history")}>{t("history")} ({history.length})</button></nav>
+    {view === "history" ? <section><div className="section-title"><h2>{t("historyRuns")}</h2><button className="quiet" onClick={() => void refreshHistory()}>{t("refresh")}</button></div>
+      {history.length === 0 ? <p className="muted">{t("noHistory")}</p> : history.map((run) => <article className="history-item" key={run.id}><button className="history-open" onClick={() => void openHistory(run.id)}><strong>{run.prompt.slice(0, 60)}</strong><span>{new Date(run.createdAt).toLocaleString(locale)} · {labelStatus(run.status)}</span></button><button className="danger" onClick={() => void removeHistory(run.id)}>{t("delete")}</button></article>)}
     </section> : <>
-      <section><div className="section-title"><h2>Provider</h2><button className="quiet" onClick={() => void detect()}>重新检测</button></div>
-        {pages.length === 0 ? <p className="muted">正在检测模型标签页…</p> : pages.map((page) => <div key={page.providerId}><label className="provider"><input type="checkbox" disabled={page.tabId === undefined || page.status === "error" || page.status === "login_required"} checked={page.tabId !== undefined && selected.includes(page.tabId)} onChange={() => page.tabId !== undefined && setSelected((current) => current.includes(page.tabId!) ? current.filter((id) => id !== page.tabId) : [...current, page.tabId!])} /><span className={`dot ${providerProgress[page.providerId] ?? page.status}`} /><strong>{providerNames[page.providerId]}</strong><span>{providerProgress[page.providerId] ?? page.status}</span></label>{page.errorMessage && <p className="provider-error">{page.errorMessage}</p>}</div>)}
+      <section><div className="section-title"><h2>Provider</h2><button className="quiet" onClick={() => void detect()}>{t("detectAgain")}</button></div>
+        {pages.length === 0 ? <p className="muted">{t("detecting")}</p> : pages.map((page) => <div key={page.providerId}><label className="provider"><input type="checkbox" disabled={page.tabId === undefined || page.status === "error" || page.status === "login_required"} checked={page.tabId !== undefined && selected.includes(page.tabId)} onChange={() => page.tabId !== undefined && setSelected((current) => current.includes(page.tabId!) ? current.filter((id) => id !== page.tabId) : [...current, page.tabId!])} /><span className={`dot ${providerProgress[page.providerId] ?? page.status}`} /><strong>{providerNames[page.providerId]}</strong><span>{labelStatus(providerProgress[page.providerId] ?? page.status)}</span></label>{page.errorMessage && <p className="provider-error">{page.errorMessage}</p>}</div>)}
       </section>
-      <section><div className="section-title"><label htmlFor="prompt"><h2>Prompt</h2></label><span className="counter">{prompt.length} 字</span></div><textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="输入要发送的问题…" rows={7} /><div className="actions"><button className="quiet" disabled={!prompt || busy} onClick={() => setPrompt("")}>清空</button><button className="quiet" disabled={!available || !prompt.trim() || busy} onClick={() => void run(true)}>Mock</button><button disabled={!selected.length || !prompt.trim() || busy} onClick={() => void run(false)}>{busy ? "等待回答…" : `发送到所选模型 (${selected.length})`}</button></div></section>
+      <section><div className="section-title"><label htmlFor="prompt"><h2>Prompt</h2></label><span className="counter">{prompt.length} {t("characters")}</span></div><textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t("promptPlaceholder")} rows={7} /><div className="actions"><button className="quiet" disabled={!prompt || busy} onClick={() => setPrompt("")}>{t("clear")}</button><button className="quiet" disabled={!available || !prompt.trim() || busy} onClick={() => void run(true)}>Mock</button><button disabled={!selected.length || !prompt.trim() || busy} onClick={() => void run(false)}>{busy ? t("waitingResponses") : `${t("sendSelected")} (${selected.length})`}</button></div></section>
       {error && <p className="error" role="alert">{error}</p>}
-      {bundle && <section><div className="section-title"><div><p className="eyebrow">Evaluation Run</p><h2>{bundle.run.status} · {bundle.responses.length}/{bundle.run.selectedProviders.length}</h2></div><div className="actions"><button className="quiet" disabled={busy} onClick={() => exportBundle("md")}>Markdown</button><button className="quiet" disabled={busy} onClick={() => exportBundle("json")}>JSON</button></div></div><p className="muted">{new Date(bundle.run.createdAt).toLocaleString()}</p></section>}
-      {bundle?.responses.map((response) => <section key={response.id}><div className="section-title"><div><p className="eyebrow">{providerNames[response.providerId]}</p><h2>{response.modelName ?? "最新回答"}</h2></div><span className="counter">{response.metadata.durationMs ? `${(response.metadata.durationMs / 1000).toFixed(1)}s` : ""}</span></div><pre className="answer">{response.text}</pre><div className="actions"><button className="quiet" onClick={() => void navigator.clipboard.writeText(response.text)}>复制</button>{response.metadata.sourceUrl && <button className="quiet" onClick={() => void chrome.tabs.create({ url: response.metadata.sourceUrl })}>打开原网页</button>}</div></section>)}
-      <section><div className="section-title"><div><p className="eyebrow">AI Judge</p><h2>匿名评审</h2></div><button className="quiet" onClick={() => void chrome.runtime.openOptionsPage()}>设置</button></div>
-        {judgeMessage && <p className={judgeMessage.includes("失败") ? "error" : "judge-message"} role="status">{judgeMessage}</p>}
-        {!bundle ? <><p className="muted">请先创建一次包含至少两个模型回答的 Evaluation Run。</p><button disabled>运行 Judge</button></> : busy ? <><p className="muted">正在等待各模型回答完成…</p><button disabled>运行 Judge</button></> : !bundle.judgeResult ? <><p className="muted">已收集 {bundle.responses.length} 个回答；至少需要 2 个回答才能匿名评审。</p><button disabled={bundle.responses.length < 2 || judgeBusy} onClick={() => void judgeCurrentRun()}>{judgeBusy ? "评审中…" : "运行 Judge"}</button></> : <>
+      {bundle && <section><div className="section-title"><div><p className="eyebrow">Evaluation Run</p><h2>{labelStatus(bundle.run.status)} · {bundle.responses.length}/{bundle.run.selectedProviders.length}</h2></div><div className="actions"><button className="quiet" disabled={busy} onClick={() => exportBundle("md")}>Markdown</button><button className="quiet" disabled={busy} onClick={() => exportBundle("json")}>JSON</button></div></div><p className="muted">{new Date(bundle.run.createdAt).toLocaleString(locale)}</p></section>}
+      {bundle?.responses.map((response) => <section key={response.id}><div className="section-title"><div><p className="eyebrow">{providerNames[response.providerId]}</p><h2>{response.modelName ?? t("latestResponse")}</h2></div><span className="counter">{response.metadata.durationMs ? `${(response.metadata.durationMs / 1000).toFixed(1)}s` : ""}</span></div><pre className="answer">{response.text}</pre><div className="actions"><button className="quiet" onClick={() => void navigator.clipboard.writeText(response.text)}>{t("copy")}</button>{response.metadata.sourceUrl && <button className="quiet" onClick={() => void chrome.tabs.create({ url: response.metadata.sourceUrl })}>{t("openSource")}</button>}</div></section>)}
+      <section><div className="section-title"><div><p className="eyebrow">AI Judge</p><h2>{t("anonymousReview")}</h2></div><button className="quiet" onClick={() => void chrome.runtime.openOptionsPage()}>{t("settings")}</button></div>
+        {judgeMessage && <p className={judgeMessage.startsWith(t("judgeFailed")) || judgeMessage.startsWith(t("synthesisFailed")) ? "error" : "judge-message"} role="status">{judgeMessage}</p>}
+        {!bundle ? <><p className="muted">{t("needRun")}</p><button disabled>{t("runJudge")}</button></> : busy ? <><p className="muted">{t("waitingModels")}</p><button disabled>{t("runJudge")}</button></> : !bundle.judgeResult ? <><p className="muted">{t("collected", { count: bundle.responses.length })}</p><button disabled={bundle.responses.length < 2 || judgeBusy} onClick={() => void judgeCurrentRun()}>{judgeBusy ? t("judging") : t("runJudge")}</button></> : <>
           <p>{bundle.judgeResult.result.summary}</p>
-          {[...bundle.judgeResult.result.ranking].sort((a, b) => a.rank - b.rank).map((rank) => <article className="history-item" key={rank.answerId}><div className="history-open"><strong>#{rank.rank} {providerNames[bundle.judgeResult!.anonymousMapping[rank.answerId]]}</strong><span>AI 评审得分 {rank.overallScore.toFixed(1)} · Judge 置信度 {rank.confidence.toFixed(0)}</span></div></article>)}
-          {bundle.judgeResult.result.evaluations.map((evaluation) => <details key={evaluation.answerId}><summary>{providerNames[bundle.judgeResult!.anonymousMapping[evaluation.answerId]]} 评分详情</summary><div className="score-grid">{Object.entries(evaluation.scores).map(([key, value]) => <div className="score" key={key}><strong>{value}</strong><span>{key}</span></div>)}</div><p><strong>优点：</strong>{evaluation.strengths.join("；") || "无"}</p><p><strong>不足：</strong>{evaluation.weaknesses.join("；") || "无"}</p><p><strong>风险：</strong>{evaluation.riskFlags.map((risk) => `[${risk.severity}] ${risk.type}: ${risk.description}`).join("；") || "无"}</p><p><strong>未验证主张：</strong>{evaluation.unsupportedClaims.join("；") || "无"}</p></details>)}
-          <div><h2>共识</h2><ul>{bundle.judgeResult.result.consensus.map((item) => <li key={item}>{item}</li>)}</ul></div>
-          <div><h2>分歧</h2><ul>{bundle.judgeResult.result.disagreements.map((item) => <li key={item.topic}>{item.topic}：{item.judgeAssessment}</li>)}</ul></div>
-          <button className="quiet" disabled={judgeBusy} onClick={() => void judgeCurrentRun()}>重新评审</button>
+          {[...bundle.judgeResult.result.ranking].sort((a, b) => a.rank - b.rank).map((rank) => <article className="history-item" key={rank.answerId}><div className="history-open"><strong>#{rank.rank} {providerNames[bundle.judgeResult!.anonymousMapping[rank.answerId]]}</strong><span>{t("judgeScore")} {rank.overallScore.toFixed(1)} · {t("confidence")} {rank.confidence.toFixed(0)}</span></div></article>)}
+          {bundle.judgeResult.result.evaluations.map((evaluation) => <details key={evaluation.answerId}><summary>{providerNames[bundle.judgeResult!.anonymousMapping[evaluation.answerId]]} {t("scoreDetails")}</summary><div className="score-grid">{Object.entries(evaluation.scores).map(([key, value]) => <div className="score" key={key}><strong>{value}</strong><span>{t(key as MessageKey)}</span></div>)}</div><p><strong>{t("strengths")}:</strong> {evaluation.strengths.join(language === "zh" ? "；" : "; ") || t("none")}</p><p><strong>{t("weaknesses")}:</strong> {evaluation.weaknesses.join(language === "zh" ? "；" : "; ") || t("none")}</p><p><strong>{t("risks")}:</strong> {evaluation.riskFlags.map((risk) => `[${risk.severity}] ${risk.type}: ${risk.description}`).join(language === "zh" ? "；" : "; ") || t("none")}</p><p><strong>{t("unsupported")}:</strong> {evaluation.unsupportedClaims.join(language === "zh" ? "；" : "; ") || t("none")}</p></details>)}
+          <div><h2>{t("consensus")}</h2><ul>{bundle.judgeResult.result.consensus.map((item) => <li key={item}>{item}</li>)}</ul></div>
+          <div><h2>{t("disagreements")}</h2><ul>{bundle.judgeResult.result.disagreements.map((item) => <li key={item.topic}>{item.topic}: {item.judgeAssessment}</li>)}</ul></div>
+          <button className="quiet" disabled={judgeBusy} onClick={() => void judgeCurrentRun()}>{t("rerunJudge")}</button>
         </>}
       </section>
-      {bundle?.judgeResult && <section><p className="eyebrow">Synthesis</p><h2>综合答案</h2><select value={synthesisMode} onChange={(event) => setSynthesisMode(event.target.value as typeof synthesisMode)}><option value="best">最优综合版</option><option value="repair">修正最佳回答</option><option value="disagreements">保留分歧版</option></select><button disabled={judgeBusy} onClick={() => void synthesizeCurrentRun()}>{judgeBusy ? "生成中…" : "生成综合答案"}</button>{bundle.synthesizedAnswers?.map((answer) => <article className="synthesis-answer" key={answer.id}><div className="section-title"><strong>{answer.mode === "best" ? "最优综合版" : answer.mode === "repair" ? "修正最佳回答" : "保留分歧版"}</strong><span className="counter">{new Date(answer.createdAt).toLocaleString()}</span></div><pre className="answer">{answer.content}</pre></article>)}</section>}
+      {bundle?.judgeResult && <section><p className="eyebrow">Synthesis</p><h2>{t("synthesis")}</h2><select value={synthesisMode} onChange={(event) => setSynthesisMode(event.target.value as typeof synthesisMode)}><option value="best">{t("best")}</option><option value="repair">{t("repair")}</option><option value="disagreements">{t("preserve")}</option></select><button disabled={judgeBusy} onClick={() => void synthesizeCurrentRun()}>{judgeBusy ? t("generating") : t("generateSynthesis")}</button>{bundle.synthesizedAnswers?.map((answer) => <article className="synthesis-answer" key={answer.id}><div className="section-title"><strong>{modeName(answer.mode)}</strong><span className="counter">{new Date(answer.createdAt).toLocaleString(locale)}</span></div><pre className="answer">{answer.content}</pre></article>)}</section>}
     </>}
   </main>;
 }
