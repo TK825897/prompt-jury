@@ -3,7 +3,12 @@ import type { NormalizedResponse } from "../../src/adapters/types";
 import { JudgeEngine } from "../../src/judge/core/judge-engine";
 import { JudgeRunner } from "../../src/judge/core/judge-runner";
 import type { JudgeInput } from "../../src/judge/core/judge-types";
-import { ChatGPTWebJudgeProvider } from "../../src/judge/providers/web/chatgpt-web-provider";
+import {
+  ChatGPTWebJudgeProvider,
+  DoubaoWebJudgeProvider,
+  GeminiWebJudgeProvider,
+  KimiWebJudgeProvider,
+} from "../../src/judge/providers/web/chatgpt-web-provider";
 import type {
   JudgeSession,
   JudgeSessionManager,
@@ -130,7 +135,7 @@ describe("ChatGPT Web Judge Provider", () => {
     expect(sessions.sendPrompt).toHaveBeenCalledTimes(2);
     expect(vi.mocked(sessions.sendPrompt).mock.calls[1][0]).toEqual(session);
     expect(vi.mocked(sessions.sendPrompt).mock.calls[1][1]).toContain(
-      "Repair formatting only",
+      "Repair it while preserving the evaluation",
     );
     expect(sessions.closeSession).toHaveBeenCalledWith(session);
   });
@@ -164,6 +169,32 @@ describe("ChatGPT Web Judge Provider", () => {
     const provider = new ChatGPTWebJudgeProvider(
       manager({ checkAvailability: vi.fn(async () => false) }),
     );
+    await expect(provider.checkAvailability()).resolves.toBe(false);
+  });
+
+  it.each([
+    [GeminiWebJudgeProvider, "gemini", "gemini-web-temporary"],
+  ] as const)(
+    "routes each Phase 6 provider through its own temporary session",
+    async (Provider, providerId, expectedId) => {
+      const sessions = manager();
+      const provider = new Provider(sessions);
+      await expect(provider.evaluate(input)).resolves.toMatchObject({
+        summary: "Web evaluation",
+      });
+      expect(provider.id).toBe(expectedId);
+      expect(sessions.createTemporarySession).toHaveBeenCalledWith(providerId);
+      expect(sessions.closeSession).toHaveBeenCalledWith(session);
+    },
+  );
+
+  it("marks Kimi Temporary Chat Judge unavailable", async () => {
+    const provider = new KimiWebJudgeProvider(manager());
+    await expect(provider.checkAvailability()).resolves.toBe(false);
+  });
+
+  it("marks Doubao Temporary Chat Judge unavailable", async () => {
+    const provider = new DoubaoWebJudgeProvider(manager());
     await expect(provider.checkAvailability()).resolves.toBe(false);
   });
 });

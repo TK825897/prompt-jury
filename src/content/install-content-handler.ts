@@ -1,6 +1,6 @@
 import { adapterForUrl } from "../adapters/registry";
 import { requestSchema, type ExtensionResponse } from "../messaging/schemas";
-import { enableChatGptTemporaryChat } from "../judge/session/chatgpt-temporary-chat";
+import { enableTemporaryChat } from "../judge/session/chatgpt-temporary-chat";
 import { AdapterError, errorMessage } from "../shared/errors";
 
 async function handle(raw: unknown): Promise<ExtensionResponse> {
@@ -35,7 +35,7 @@ async function handle(raw: unknown): Promise<ExtensionResponse> {
     if (parsed.data.type === "CONTENT_DETECT")
       return { ok: true, data: await adapter.detectPageState() };
     if (parsed.data.type === "CONTENT_ENABLE_TEMPORARY_CHAT") {
-      if (adapter.id !== "chatgpt") {
+      if (adapter.id === "mock") {
         return {
           ok: false,
           error:
@@ -43,7 +43,7 @@ async function handle(raw: unknown): Promise<ExtensionResponse> {
           code: "UNSUPPORTED_TEMPORARY_SESSION",
         };
       }
-      await enableChatGptTemporaryChat();
+      await enableTemporaryChat(adapter.id);
       return { ok: true, data: "temporary_chat_ready" };
     }
     if (

@@ -15,7 +15,7 @@ Prompt Jury 是一款 Chrome / Edge Manifest V3 浏览器扩展。当前 MVP 已
 - 提取各平台本轮最新回答，并在 Side Panel 中统一展示；
 - 将 Prompt、回答、耗时和失败信息保存为本地 Evaluation Run；
 - 查看和删除历史运行，或将完整结果导出为 Markdown、JSON；
-- 可通过 OpenAI-compatible API 或扩展专属的 ChatGPT 临时聊天匿名评审候选回答；
+- 可通过 OpenAI-compatible API 或经过严格确认的临时 Web Judge 会话匿名评审候选回答；
 - 同一个 Evaluation Run 可保存多次 Judge 结果，新结果不会覆盖旧结果；
 - 展示评分、排名、优缺点、风险、共识和分歧；
 - 按“最优综合版”“修正最佳回答”或“保留分歧版”生成并分别保存综合答案。
@@ -75,17 +75,19 @@ Prompt Jury 尚未上架 Chrome 应用商店或 Microsoft Edge 加载项商店�
 4. 根据需要调整六项评分权重，并确保总和为 100%；
 5. 点击“保存 Judge 配置”，并允许扩展访问该 API 地址。
 
-API Judge 配置保存在浏览器本地，API Key 不会写入运行历史或导出文件。使用 ChatGPT Web Judge 评审时不需要 API 配置，但当前综合答案功能仍使用已配置的 API。
+API Judge 配置保存在浏览器本地，API Key 不会写入运行历史或导出文件。使用 Web Judge 评审时不需要 API 配置，但当前综合答案功能仍使用已配置的 API。
 
 ### 5. 运行评审与生成综合答案
 
 1. 确保当前 Evaluation Run 至少成功收集两个回答；
-2. 在 AI Judge 区域选择“OpenAI-compatible API”或“ChatGPT 临时聊天”；
-3. 使用 Web Judge 时，请保持一个已登录的 ChatGPT 标签页打开；Prompt Jury 会创建独立临时标签，并在评审后自动关闭；
+2. 在 AI Judge 区域选择“OpenAI-compatible API”“ChatGPT 临时聊天”“Gemini 临时聊天”“Kimi 临时聊天”或“豆包临时聊天”；
+3. 使用 Web Judge 时，请保持对应平台的已登录标签页打开；Prompt Jury 会复制为扩展专属标签、进入新会话，并且只有在临时模式被正向确认后才发送数据；
 4. 点击“运行 Judge”，等待匿名评审完成；
 5. 查看各回答的排名、评分、优缺点、风险、共识和分歧；
 6. 选择一种综合方式并点击“生成综合答案”；
 7. Judge 结果和不同综合答案都会追加保存，不会覆盖此前结果。
+
+Gemini 临时聊天只对符合条件的个人 Google 账号开放。由于 Kimi 和豆包网页版目前均没有可验证的临时/无痕模式，两者的临时聊天 Judge 已标记为不可用；普通回答收集功能仍然可用。
 
 ## 开发
 
@@ -141,4 +143,4 @@ ChatGPT 的联网搜索回答可能先渲染引用来源、暂停后再补充正
 - `src/storage/`：IndexedDB 封装；
 - `tests/unit/`：Vitest 单元测试。
 
-扩展不依赖自建后端，不读取或上传 Cookie，也不会把 Prompt 和回答写入控制台。Manifest 的固定 `host_permissions` 仅覆盖当前支持的 ChatGPT、Gemini、Kimi 和豆包页面。配置 OpenAI-compatible Judge 时，扩展会请求对应 API 地址的可选 Host Permission。API Judge 和综合答案会把当前 Prompt 与候选回答发送到所配置的 API；ChatGPT Web Judge 则通过扩展专属的临时聊天发送匿名评审 Prompt。API Key 与运行历史仍仅保存在浏览器本地，不会写入导出文件。
+扩展不依赖自建后端，不读取或上传 Cookie，也不会把 Prompt 和回答写入控制台。Manifest 的固定 `host_permissions` 仅覆盖当前支持的 ChatGPT、Gemini、Kimi 和豆包页面。配置 OpenAI-compatible Judge 时，扩展会请求对应 API 地址的可选 Host Permission。API Judge 和综合答案会把当前 Prompt 与候选回答发送到所配置的 API；Web Judge 只会通过扩展专属且已正向确认的临时会话发送匿名评审 Prompt。API Key 与运行历史仍仅保存在浏览器本地，不会写入导出文件。

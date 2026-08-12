@@ -29,8 +29,15 @@ const messages = {
     selectJudge: "选择 Judge",
     apiJudge: "OpenAI-compatible API",
     chatgptWebJudge: "ChatGPT 临时聊天",
+    geminiWebJudge: "Gemini 临时聊天",
+    kimiWebJudge: "Kimi 临时聊天",
+    doubaoWebJudge: "豆包临时聊天",
+    temporarilyUnavailable: "不可用",
     apiJudgeHelp: "使用设置页面中配置的 API，独立请求且不复用上下文。",
-    webJudgeHelp: "使用已登录的 ChatGPT，新建临时聊天完成评审后自动关闭。",
+    chatgptWebJudgeHelp: "使用已登录的 ChatGPT 临时聊天，评审后自动关闭。",
+    geminiWebJudgeHelp: "使用 Gemini 官方临时聊天；仅支持个人 Google 账号。",
+    kimiWebJudgeHelp: "Kimi 网页版目前不提供可验证的临时/无痕会话。",
+    doubaoWebJudgeHelp: "豆包网页版目前不提供可验证的临时/无痕会话。",
     judgeRunCount: "已保存 {count} 次 Judge 结果",
     currentJudge: "当前 Judge",
     viewJudgeResult: "查看 Judge 结果",
@@ -64,12 +71,11 @@ const messages = {
     readingJudge: "正在读取 Judge 配置…",
     configureJudge: "请先在 Judge 设置中配置 API Key 和 Model。",
     callingJudge: "正在调用 {model} 进行匿名评审…",
-    callingWebJudge: "正在创建 ChatGPT 临时聊天并进行匿名评审…",
-    webJudgeUnavailable:
-      "ChatGPT Web Judge 不可用。请打开并登录 ChatGPT 后重试。",
-    sessionCreateFailed: "无法创建 ChatGPT 临时聊天，请重试。",
+    callingWebJudge: "正在创建 {provider} 并进行匿名评审…",
+    webJudgeUnavailable: "所选 Web Judge 不可用。请打开并登录对应平台后重试。",
+    sessionCreateFailed: "无法创建临时 Judge 会话，请重试。",
     sessionCleanupFailed: "评审已结束，但临时标签页未能自动关闭，请手动关闭。",
-    webResponseInvalid: "ChatGPT Web Judge 返回的结果无法解析，请重试。",
+    webResponseInvalid: "Web Judge 返回的结果无法解析，请重试。",
     savingJudge: "评审完成，正在保存本地结果…",
     judgeSaved: "Judge 已完成并保存。",
     judgeFailed: "Judge 失败",
@@ -130,10 +136,20 @@ const messages = {
     selectJudge: "Select Judge",
     apiJudge: "OpenAI-compatible API",
     chatgptWebJudge: "ChatGPT Temporary Chat",
+    geminiWebJudge: "Gemini Temporary Chat",
+    kimiWebJudge: "Kimi Temporary Chat",
+    doubaoWebJudge: "Doubao Temporary Chat",
+    temporarilyUnavailable: "Unavailable",
     apiJudgeHelp:
       "Uses the API configured in Settings with an independent, stateless request.",
-    webJudgeHelp:
-      "Uses your signed-in ChatGPT in a new temporary chat and closes it after review.",
+    chatgptWebJudgeHelp:
+      "Uses signed-in ChatGPT Temporary Chat and closes it after review.",
+    geminiWebJudgeHelp:
+      "Uses Gemini's official Temporary Chat; personal Google Accounts only.",
+    kimiWebJudgeHelp:
+      "Kimi Web currently provides no verifiable temporary or incognito session.",
+    doubaoWebJudgeHelp:
+      "Doubao Web currently provides no verifiable temporary or incognito session.",
     judgeRunCount: "{count} Judge result(s) saved",
     currentJudge: "Current Judge",
     viewJudgeResult: "View Judge result",
@@ -168,15 +184,15 @@ const messages = {
     readingJudge: "Loading Judge configuration…",
     configureJudge: "Configure an API Key and Model in Judge settings first.",
     callingJudge: "Calling {model} for anonymous review…",
-    callingWebJudge: "Creating a ChatGPT Temporary Chat for anonymous review…",
+    callingWebJudge: "Creating {provider} for anonymous review…",
     webJudgeUnavailable:
-      "ChatGPT Web Judge is unavailable. Open and sign in to ChatGPT, then retry.",
+      "The selected Web Judge is unavailable. Open and sign in to that provider, then retry.",
     sessionCreateFailed:
-      "Could not create a ChatGPT Temporary Chat. Please retry.",
+      "Could not create a temporary Judge session. Please retry.",
     sessionCleanupFailed:
       "The review finished, but the temporary tab could not be closed. Close it manually.",
     webResponseInvalid:
-      "ChatGPT Web Judge returned a result that could not be parsed. Please retry.",
+      "The Web Judge returned a result that could not be parsed. Please retry.",
     savingJudge: "Review complete; saving the result locally…",
     judgeSaved: "Judge completed and saved.",
     judgeFailed: "Judge failed",

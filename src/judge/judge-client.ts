@@ -1,6 +1,7 @@
 import {
   buildJudgePrompt,
   buildSynthesisPrompt,
+  assertJudgeResultLanguage,
   type AnonymousAnswer,
 } from "./prompts";
 import {
@@ -233,7 +234,11 @@ export async function runJudge(
     try {
       lastRaw = await completion(config, prompt, attempt === 0);
       return {
-        result: applyWeights(parseJudgeJson(lastRaw), config.weights),
+        result: (() => {
+          const result = applyWeights(parseJudgeJson(lastRaw), config.weights);
+          assertJudgeResultLanguage(question, result);
+          return result;
+        })(),
         raw: lastRaw,
       };
     } catch (error) {
@@ -262,7 +267,13 @@ export async function runSynthesis(
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await completion(config, prompt, false);
+      const attemptPrompt =
+        attempt === 0
+          ? prompt
+          : `${prompt}\n\nCORRECTION: Your previous response reproduced Judge JSON instead of answering the user. Return only the synthesized natural-language Markdown answer now. Do not use a JSON code fence or JSON object.`;
+      const content = await completion(config, attemptPrompt, false);
+      assertSynthesisIsNaturalLanguage(content);
+      return content;
     } catch (error) {
       lastError = error;
       if (
@@ -276,4 +287,20 @@ export async function runSynthesis(
   throw new Error(
     `Synthesis API failed after retry: ${lastError instanceof Error ? lastError.message : "unknown error"}`,
   );
+}
+
+export function assertSynthesisIsNaturalLanguage(content: string): void {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  const candidate = (fenced ?? trimmed).trim();
+  const judgeKeys =
+    /["'](?:summary|ranking|evaluations|consensus|missingPoints|recommendedAnswerId)["']\s*:/;
+  if (
+    /^```\s*json/i.test(trimmed) ||
+    (/^\s*\{/.test(candidate) && judgeKeys.test(candidate))
+  ) {
+    throw new Error(
+      "Synthesis returned Judge JSON instead of a natural-language answer.",
+    );
+  }
 }

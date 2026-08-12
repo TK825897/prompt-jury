@@ -31,6 +31,12 @@ describe("message schema", () => {
     ).toBe(true);
     expect(
       requestSchema.safeParse({
+        type: "CREATE_JUDGE_SESSION",
+        providerId: "gemini",
+      }).success,
+    ).toBe(true);
+    expect(
+      requestSchema.safeParse({
         type: "SEND_JUDGE_PROMPT",
         sessionId: "session-1",
         tabId: 42,

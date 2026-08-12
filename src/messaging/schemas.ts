@@ -47,6 +47,8 @@ const judgeSessionSchema = z.object({
   providerId: z.enum(["chatgpt", "gemini", "kimi", "doubao"]),
   type: z.literal("temporary"),
   tabId: z.number(),
+  returnToTabId: z.number().optional(),
+  returnToWindowId: z.number().optional(),
   createdAt: z.string(),
 });
 

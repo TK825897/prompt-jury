@@ -15,7 +15,7 @@ Prompt Jury is a Chrome / Edge Manifest V3 browser extension. The current MVP in
 - Extracts the latest response from each platform and displays all responses together in the Side Panel;
 - Saves prompts, responses, durations, and failure details as local Evaluation Runs;
 - Lets you view and delete run history or export complete results as Markdown or JSON;
-- Anonymously evaluates candidate responses through either an OpenAI-compatible API or an extension-owned ChatGPT Temporary Chat;
+- Anonymously evaluates candidate responses through an OpenAI-compatible API or a strictly confirmed temporary Web Judge session;
 - Saves multiple Judge runs for the same Evaluation Run without overwriting earlier results;
 - Displays scores, rankings, strengths, weaknesses, risks, consensus, and disagreements;
 - Generates and separately saves three synthesis variants: Best Integrated Answer, Repair Best Answer, and Preserve Disagreements.
@@ -75,17 +75,19 @@ If a Provider shows `not_open`, open and sign in to that platform, then click **
 4. Adjust the six scoring weights if needed, keeping their total at 100%;
 5. Click **Save Judge configuration** and allow the extension to access the API address.
 
-The API Judge configuration is stored locally in the browser. The API Key is never written to run history or export files. API configuration is not required for ChatGPT Web Judge evaluation, but the current synthesis feature still uses the configured API.
+The API Judge configuration is stored locally in the browser. The API Key is never written to run history or export files. API configuration is not required for Web Judge evaluation, but the current synthesis feature still uses the configured API.
 
 ### 5. Run the Judge and synthesize an answer
 
 1. Make sure the current Evaluation Run contains at least two successfully collected responses;
-2. Select **OpenAI-compatible API** or **ChatGPT Temporary Chat** in the AI Judge section;
-3. For Web Judge, keep a signed-in ChatGPT tab open. Prompt Jury creates a separate temporary tab and closes it after the review;
+2. Select **OpenAI-compatible API**, **ChatGPT Temporary Chat**, **Gemini Temporary Chat**, **Kimi Temporary Chat**, or **Doubao Temporary Chat**;
+3. For a Web Judge, keep a signed-in tab for that provider open. Prompt Jury duplicates it into an extension-owned tab, enters a new chat, and sends data only after temporary mode is positively confirmed;
 4. Click **Run Judge** and wait for the anonymous evaluation to finish;
 5. Review each response's ranking, scores, strengths, weaknesses, risks, consensus, and disagreements;
 6. Select a synthesis mode and click **Generate synthesized answer**;
 7. Judge runs and synthesis variants are appended rather than overwritten and remain stored locally with the Evaluation Run.
+
+Gemini Temporary Chat is available only to eligible personal Google Accounts. Kimi and Doubao Temporary Chat Judges are marked unavailable because their web apps currently expose no verifiable temporary or incognito mode. Their ordinary response-collection adapters remain available.
 
 ## Development
 
@@ -141,4 +143,4 @@ Select one or more platforms and click **Send to selected models** to invoke the
 - `src/storage/`: IndexedDB wrapper;
 - `tests/unit/`: Vitest unit tests.
 
-The extension does not depend on a custom backend, read or upload cookies, or log prompts and responses to the console. Its fixed Manifest `host_permissions` cover only the currently supported ChatGPT, Gemini, Kimi, and Doubao pages. When you configure an OpenAI-compatible Judge, the extension requests optional Host Permission for that API address. API Judge and synthesis send the current prompt and candidate responses to the configured API. ChatGPT Web Judge sends the anonymous evaluation prompt through an extension-owned Temporary Chat. The API Key and run history remain stored only in the local browser and are never written to export files.
+The extension does not depend on a custom backend, read or upload cookies, or log prompts and responses to the console. Its fixed Manifest `host_permissions` cover only the currently supported ChatGPT, Gemini, Kimi, and Doubao pages. When you configure an OpenAI-compatible Judge, the extension requests optional Host Permission for that API address. API Judge and synthesis send the current prompt and candidate responses to the configured API. Web Judges send the anonymous evaluation prompt only through an extension-owned, positively confirmed temporary session. The API Key and run history remain stored only in the local browser and are never written to export files.

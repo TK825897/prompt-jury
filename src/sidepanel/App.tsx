@@ -17,7 +17,12 @@ import { JudgeRunner } from "../judge/core/judge-runner";
 import { runSynthesis } from "../judge/judge-client";
 import type { AnonymousAnswer } from "../judge/prompts";
 import { OpenAICompatibleJudgeProvider } from "../judge/providers/api/openai-compatible-provider";
-import { ChatGPTWebJudgeProvider } from "../judge/providers/web/chatgpt-web-provider";
+import {
+  ChatGPTWebJudgeProvider,
+  DoubaoWebJudgeProvider,
+  GeminiWebJudgeProvider,
+  KimiWebJudgeProvider,
+} from "../judge/providers/web/chatgpt-web-provider";
 import { BrowserJudgeSessionManager } from "../judge/session/judge-session-manager";
 import { useUiLanguage, type MessageKey } from "../i18n";
 import {
@@ -109,9 +114,9 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [judgeBusy, setJudgeBusy] = useState(false);
   const [judgeMessage, setJudgeMessage] = useState("");
-  const [judgeProvider, setJudgeProvider] = useState<"api" | "chatgpt-web">(
-    "api",
-  );
+  const [judgeProvider, setJudgeProvider] = useState<
+    "api" | "chatgpt-web" | "gemini-web" | "kimi-web" | "doubao-web"
+  >("api");
   const [synthesisMode, setSynthesisMode] = useState<
     "best" | "repair" | "disagreements"
   >("best");
@@ -337,16 +342,23 @@ export function App() {
     setJudgeMessage(t("readingJudge"));
     try {
       const config = await loadJudgeConfig();
+      const sessionManager = new BrowserJudgeSessionManager();
       const provider =
         judgeProvider === "api"
           ? new OpenAICompatibleJudgeProvider(config)
-          : new ChatGPTWebJudgeProvider(new BrowserJudgeSessionManager());
+          : judgeProvider === "chatgpt-web"
+            ? new ChatGPTWebJudgeProvider(sessionManager)
+            : judgeProvider === "gemini-web"
+              ? new GeminiWebJudgeProvider(sessionManager)
+              : judgeProvider === "kimi-web"
+                ? new KimiWebJudgeProvider(sessionManager)
+                : new DoubaoWebJudgeProvider(sessionManager);
       if (judgeProvider === "api") {
         if (!config.apiKey || !config.model)
           throw new Error(t("configureJudge"));
         setJudgeMessage(t("callingJudge", { model: config.model }));
       } else {
-        setJudgeMessage(t("callingWebJudge"));
+        setJudgeMessage(t("callingWebJudge", { provider: provider.name }));
       }
       const judged = await new JudgeRunner(new JudgeEngine([provider])).run(
         provider.id,
@@ -403,7 +415,7 @@ export function App() {
           : "";
       const message =
         code === "PROVIDER_UNAVAILABLE"
-          ? judgeProvider === "chatgpt-web"
+          ? judgeProvider !== "api"
             ? t("webJudgeUnavailable")
             : t("configureJudge")
           : code === "SESSION_CREATE_FAILED"
@@ -753,26 +765,46 @@ export function App() {
                   <small>{t("apiJudgeHelp")}</small>
                 </span>
               </label>
-              <label
-                className={
-                  judgeProvider === "chatgpt-web"
-                    ? "judge-provider-option selected"
-                    : "judge-provider-option"
-                }
-              >
-                <input
-                  type="radio"
-                  name="judge-provider"
-                  value="chatgpt-web"
-                  checked={judgeProvider === "chatgpt-web"}
-                  disabled={judgeBusy}
-                  onChange={() => setJudgeProvider("chatgpt-web")}
-                />
-                <span>
-                  <strong>{t("chatgptWebJudge")}</strong>
-                  <small>{t("webJudgeHelp")}</small>
-                </span>
-              </label>
+              {(
+                [
+                  [
+                    "chatgpt-web",
+                    "chatgptWebJudge",
+                    "chatgptWebJudgeHelp",
+                    false,
+                  ],
+                  ["gemini-web", "geminiWebJudge", "geminiWebJudgeHelp", false],
+                  ["kimi-web", "kimiWebJudge", "kimiWebJudgeHelp", true],
+                  ["doubao-web", "doubaoWebJudge", "doubaoWebJudgeHelp", true],
+                ] as const
+              ).map(([value, labelKey, helpKey, unavailable]) => (
+                <label
+                  key={value}
+                  className={
+                    unavailable
+                      ? "judge-provider-option unavailable"
+                      : judgeProvider === value
+                        ? "judge-provider-option selected"
+                        : "judge-provider-option"
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="judge-provider"
+                    value={value}
+                    checked={judgeProvider === value}
+                    disabled={judgeBusy || unavailable}
+                    onChange={() => setJudgeProvider(value)}
+                  />
+                  <span>
+                    <strong>
+                      {t(labelKey)}
+                      {unavailable ? ` · ${t("temporarilyUnavailable")}` : ""}
+                    </strong>
+                    <small>{t(helpKey)}</small>
+                  </span>
+                </label>
+              ))}
             </div>
             {Boolean(bundle?.judgeRuns?.length) && (
               <>

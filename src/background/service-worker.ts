@@ -69,38 +69,62 @@ async function waitForTabComplete(
 async function createTemporaryJudgeSession(
   providerId: Exclude<PageState["providerId"], "mock">,
 ): Promise<JudgeSession> {
-  if (providerId !== "chatgpt")
-    throw new Error(
-      `${providerId} Temporary Chat Judge is not implemented yet.`,
-    );
+  const providerConfig = {
+    chatgpt: {
+      urlPatterns: ["https://chatgpt.com/*", "https://*.chatgpt.com/*"],
+      newChatUrl: "https://chatgpt.com/",
+    },
+    gemini: {
+      urlPatterns: ["https://gemini.google.com/*"],
+      newChatUrl: "https://gemini.google.com/app",
+    },
+    kimi: {
+      urlPatterns: [
+        "https://www.kimi.com/*",
+        "https://kimi.com/*",
+        "https://kimi.moonshot.cn/*",
+      ],
+      newChatUrl: "https://www.kimi.com/",
+    },
+    doubao: {
+      urlPatterns: ["https://www.doubao.com/*", "https://doubao.com/*"],
+      newChatUrl: "https://www.doubao.com/",
+    },
+  } satisfies Record<
+    Exclude<PageState["providerId"], "mock">,
+    { urlPatterns: string[]; newChatUrl: string }
+  >;
+  const config = providerConfig[providerId];
   const [originalActiveTab] = await chrome.tabs.query({
     active: true,
     currentWindow: true,
   });
   const existingTabs = await chrome.tabs.query({
-    url: ["https://chatgpt.com/*", "https://*.chatgpt.com/*"],
+    url: config.urlPatterns,
   });
   const sourceTab =
     existingTabs.find(
       (candidate) => candidate.windowId === originalActiveTab?.windowId,
     ) ?? existingTabs[0];
-  const tab =
-    sourceTab?.id !== undefined
-      ? await chrome.tabs.duplicate(sourceTab.id)
-      : await chrome.tabs.create({
-          url: "https://chatgpt.com/",
-          active: false,
-        });
+  if (sourceTab?.id === undefined) {
+    throw new Error(
+      `${providerId} Web Judge requires an open, signed-in ${providerId} tab.`,
+    );
+  }
+  const newChatUrl =
+    providerId === "kimi" || providerId === "doubao"
+      ? `${new URL(sourceTab.url ?? config.newChatUrl).origin}/`
+      : config.newChatUrl;
+  const tab = await chrome.tabs.duplicate(sourceTab.id);
   if (!tab || tab.id === undefined)
-    throw new Error("ChatGPT Temporary Chat tab could not be created.");
+    throw new Error(`${providerId} Temporary Chat tab could not be created.`);
   const tabId = tab.id;
   try {
     await chrome.tabs.update(tabId, {
       active: true,
-      // A duplicated /c/... page is an existing conversation and does not
-      // expose the Temporary Chat entry point. The owned tab must start from
-      // ChatGPT's new-conversation route.
-      url: "https://chatgpt.com/",
+      // A duplicated conversation does not necessarily expose its provider's
+      // Temporary Chat entry point. Start from the provider's new-chat route.
+      url: newChatUrl,
     });
     await chrome.windows.update(tab.windowId, { focused: true });
     let loadWarning = "";
@@ -112,13 +136,13 @@ async function createTemporaryJudgeSession(
       loadWarning = errorMessage(error);
     }
     const enableTemporaryChat = async (): Promise<void> => {
-      const enabled = await toContent(tabId, {
+      const enabled = await toContentWhenReady(tabId, {
         type: "CONTENT_ENABLE_TEMPORARY_CHAT",
       });
       if (!enabled.ok || enabled.data !== "temporary_chat_ready") {
         throw new Error(
           enabled.ok
-            ? "ChatGPT Temporary Chat activation returned invalid data."
+            ? `${providerId} Temporary Chat activation returned invalid data.`
             : enabled.error,
         );
       }
@@ -128,7 +152,7 @@ async function createTemporaryJudgeSession(
       await enableTemporaryChat();
     } catch (error) {
       throw new Error(
-        `ChatGPT Temporary Chat activation failed in the focused tab.${loadWarning ? ` Load status: ${loadWarning}` : ""} ${errorMessage(error)}`,
+        `${providerId} Temporary Chat activation failed in the focused tab.${loadWarning ? ` Load status: ${loadWarning}` : ""} ${errorMessage(error)}`,
       );
     }
     // ChatGPT throttles rendering in background tabs. Keep the owned Judge tab
@@ -260,6 +284,46 @@ async function toContent(
     }
     throw initialError;
   }
+}
+
+async function toContentWhenReady(
+  tabId: number,
+  message: ContentMessage,
+  timeoutMs = 30_000,
+): Promise<ExtensionResponse> {
+  const deadline = Date.now() + timeoutMs;
+  let injected = false;
+  let lastError: unknown = new Error("Content Script did not become ready.");
+  while (Date.now() < deadline) {
+    try {
+      return await sendToContent(tabId, message);
+    } catch (error) {
+      lastError = error;
+    }
+    if (!injected) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        const currentProvider = providerFromUrl(tab.url ?? "");
+        if (!currentProvider || currentProvider === "mock") {
+          throw new Error("Temporary Judge tab left the supported provider.");
+        }
+        await injectContentScript(tabId, currentProvider);
+        injected = true;
+      } catch (error) {
+        lastError = error;
+        const detail = errorMessage(error);
+        if (/blocked|cannot access|permission|not allowed/i.test(detail)) {
+          throw new Error(
+            `Browser blocked script execution (${detail}). Check this extension's site access for the selected provider.`,
+          );
+        }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(
+    `Content Script did not become ready within ${timeoutMs} ms. ${errorMessage(lastError)}`,
+  );
 }
 
 async function handle(raw: unknown): Promise<ExtensionResponse> {

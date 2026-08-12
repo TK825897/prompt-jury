@@ -2,10 +2,16 @@ import { describe, expect, it } from "vitest";
 import { anonymizeResponses } from "../../src/judge/anonymize";
 import {
   chatCompletionsEndpoint,
+  assertSynthesisIsNaturalLanguage,
   parseCompletionResponse,
   parseJudgeJson,
 } from "../../src/judge/judge-client";
 import { weightedScore } from "../../src/judge/scoring";
+import {
+  assertJudgeResultLanguage,
+  buildJudgePrompt,
+  buildSynthesisPrompt,
+} from "../../src/judge/prompts";
 
 const result = {
   summary: "Summary",
@@ -138,5 +144,48 @@ describe("Judge", () => {
   });
   it("reports an empty response clearly", () => {
     expect(() => parseCompletionResponse(" ")).toThrow("empty response body");
+  });
+  it("rejects Judge JSON returned as a synthesized answer", () => {
+    expect(() =>
+      assertSynthesisIsNaturalLanguage(
+        '```json\n{"summary":"Repeated Judge output","ranking":[]}\n```',
+      ),
+    ).toThrow("Judge JSON");
+    expect(() =>
+      assertSynthesisIsNaturalLanguage("## 建议\n\n这是最终的综合答案。"),
+    ).not.toThrow();
+  });
+  it("requires Judge text values to follow the original question language", () => {
+    const prompt = buildJudgePrompt(
+      "项目管理的主要工具有哪些？",
+      [{ answerId: "Answer A", text: "候选回答" }],
+      {
+        factuality: 30,
+        completeness: 20,
+        logic: 15,
+        actionability: 20,
+        riskAwareness: 10,
+        writingQuality: 5,
+      },
+    );
+    expect(prompt).toContain("Simplified Chinese (简体中文)");
+    expect(() =>
+      assertJudgeResultLanguage("项目管理的主要工具有哪些？", result),
+    ).toThrow("language mismatch");
+    const chineseResult = {
+      ...result,
+      summary: "这是一段使用简体中文撰写的完整评审结论。",
+    };
+    expect(() =>
+      assertJudgeResultLanguage("项目管理的主要工具有哪些？", chineseResult),
+    ).not.toThrow();
+    expect(
+      buildSynthesisPrompt(
+        "best",
+        "项目管理的主要工具有哪些？",
+        [{ answerId: "Answer A", text: "候选回答" }],
+        chineseResult,
+      ),
+    ).toContain("Simplified Chinese (简体中文)");
   });
 });

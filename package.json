@@ -1,7 +1,7 @@
 {
   "name": "multi-llm-response-lab",
   "private": true,
-  "version": "0.3.15",
+  "version": "0.3.23",
   "type": "module",
   "scripts": {
     "dev": "vite",
