@@ -39,6 +39,7 @@ export interface EvaluationBundle {
   run: EvaluationRun;
   responses: ResponseDocument[];
   judgeResult?: StoredJudgeResult;
+  judgeRuns?: StoredJudgeResult[];
   synthesizedAnswers?: SynthesizedAnswer[];
 }
 
@@ -46,6 +47,8 @@ export interface StoredJudgeResult {
   id: string;
   runId: string;
   model: string;
+  provider?: string;
+  type?: "api" | "web";
   anonymousMapping: Record<string, ProviderId>;
   rawJson: string;
   result: JudgeResult;

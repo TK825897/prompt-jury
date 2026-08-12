@@ -1,6 +1,6 @@
 # Prompt Jury
 
-English | [中文版](README_ZH.md)
+English | [Chinese](README_ZH.md)
 
 > Compare multiple LLM responses, judge the differences, and synthesize the best answer.
 
@@ -15,7 +15,8 @@ Prompt Jury is a Chrome / Edge Manifest V3 browser extension. The current MVP in
 - Extracts the latest response from each platform and displays all responses together in the Side Panel;
 - Saves prompts, responses, durations, and failure details as local Evaluation Runs;
 - Lets you view and delete run history or export complete results as Markdown or JSON;
-- Anonymously evaluates candidate responses through a user-configured OpenAI-compatible API;
+- Anonymously evaluates candidate responses through either an OpenAI-compatible API or an extension-owned ChatGPT Temporary Chat;
+- Saves multiple Judge runs for the same Evaluation Run without overwriting earlier results;
 - Displays scores, rankings, strengths, weaknesses, risks, consensus, and disagreements;
 - Generates and separately saves three synthesis variants: Best Integrated Answer, Repair Best Answer, and Preserve Disagreements.
 
@@ -66,7 +67,7 @@ If a Provider shows `not_open`, open and sign in to that platform, then click **
 - Click **Markdown** or **JSON** in the Evaluation Run section to download the complete result;
 - Delete runs you no longer need from the history list.
 
-### 4. Configure the AI Judge
+### 4. Configure the API Judge
 
 1. Click **Settings** in the **AI Judge** section of the Side Panel;
 2. Enter the Base URL or full Chat Completions URL of an OpenAI-compatible API;
@@ -74,15 +75,17 @@ If a Provider shows `not_open`, open and sign in to that platform, then click **
 4. Adjust the six scoring weights if needed, keeping their total at 100%;
 5. Click **Save Judge configuration** and allow the extension to access the API address.
 
-The Judge configuration is stored locally in the browser. The API Key is never written to run history or export files. When you run the Judge or generate a synthesized answer, the current prompt and candidate responses are sent to the API you configured.
+The API Judge configuration is stored locally in the browser. The API Key is never written to run history or export files. API configuration is not required for ChatGPT Web Judge evaluation, but the current synthesis feature still uses the configured API.
 
 ### 5. Run the Judge and synthesize an answer
 
 1. Make sure the current Evaluation Run contains at least two successfully collected responses;
-2. Click **Run Judge** and wait for the anonymous evaluation to finish;
-3. Review each response's ranking, scores, strengths, weaknesses, risks, consensus, and disagreements;
-4. Select a synthesis mode and click **Generate synthesized answer**;
-5. You can generate each synthesis mode in turn. Existing results are not overwritten and remain stored locally with the current run.
+2. Select **OpenAI-compatible API** or **ChatGPT Temporary Chat** in the AI Judge section;
+3. For Web Judge, keep a signed-in ChatGPT tab open. Prompt Jury creates a separate temporary tab and closes it after the review;
+4. Click **Run Judge** and wait for the anonymous evaluation to finish;
+5. Review each response's ranking, scores, strengths, weaknesses, risks, consensus, and disagreements;
+6. Select a synthesis mode and click **Generate synthesized answer**;
+7. Judge runs and synthesis variants are appended rather than overwritten and remain stored locally with the Evaluation Run.
 
 ## Development
 
@@ -120,7 +123,7 @@ The same build detects and uses Gemini normally in Chrome, so this is currently 
 
 The default response timeout is 180 seconds. Because Kimi's deep-thinking mode can take longer, the Kimi Adapter uses a 300-second timeout. Polling remains frequent so completed responses can be returned promptly.
 
-ChatGPT web-search responses may render citations first and append the main text after a pause. Prompt Jury therefore waits for the text to remain stable for about 10 seconds and applies an additional 1.5-second buffer before extraction.
+ChatGPT web-search responses may render citations first and append the main text after a pause. On the current conversation-turn UI, Prompt Jury requires the response's final turn actions to appear, then applies a 3-second extraction buffer. A 20-second stable-text check is used only as a fallback for legacy UI variants that do not expose the standard conversation-turn structure.
 
 ## Verify the Messaging Flow
 
@@ -138,4 +141,4 @@ Select one or more platforms and click **Send to selected models** to invoke the
 - `src/storage/`: IndexedDB wrapper;
 - `tests/unit/`: Vitest unit tests.
 
-The extension does not depend on a custom backend, read or upload cookies, or log prompts and responses to the console. Its fixed Manifest `host_permissions` cover only the currently supported ChatGPT, Gemini, Kimi, and Doubao pages. When you configure an OpenAI-compatible Judge, the extension requests optional Host Permission for that API address. The current prompt and candidate responses are sent to the configured API only when you run the Judge or generate a synthesized answer. The API Key and run history remain stored only in the local browser and are never written to export files.
+The extension does not depend on a custom backend, read or upload cookies, or log prompts and responses to the console. Its fixed Manifest `host_permissions` cover only the currently supported ChatGPT, Gemini, Kimi, and Doubao pages. When you configure an OpenAI-compatible Judge, the extension requests optional Host Permission for that API address. API Judge and synthesis send the current prompt and candidate responses to the configured API. ChatGPT Web Judge sends the anonymous evaluation prompt through an extension-owned Temporary Chat. The API Key and run history remain stored only in the local browser and are never written to export files.

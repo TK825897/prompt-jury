@@ -15,7 +15,8 @@ Prompt Jury 是一款 Chrome / Edge Manifest V3 浏览器扩展。当前 MVP 已
 - 提取各平台本轮最新回答，并在 Side Panel 中统一展示；
 - 将 Prompt、回答、耗时和失败信息保存为本地 Evaluation Run；
 - 查看和删除历史运行，或将完整结果导出为 Markdown、JSON；
-- 使用用户配置的 OpenAI-compatible API 匿名评审候选回答；
+- 可通过 OpenAI-compatible API 或扩展专属的 ChatGPT 临时聊天匿名评审候选回答；
+- 同一个 Evaluation Run 可保存多次 Judge 结果，新结果不会覆盖旧结果；
 - 展示评分、排名、优缺点、风险、共识和分歧；
 - 按“最优综合版”“修正最佳回答”或“保留分歧版”生成并分别保存综合答案。
 
@@ -66,7 +67,7 @@ Prompt Jury 尚未上架 Chrome 应用商店或 Microsoft Edge 加载项商店�
 - 在 Evaluation Run 区域点击“Markdown”或“JSON”下载完整结果；
 - 不再需要的记录可从历史列表中删除。
 
-### 4. 配置 AI Judge
+### 4. 配置 API Judge
 
 1. 在 Side Panel 的“AI Judge”区域点击“设置”；
 2. 填写 OpenAI-compatible API 的 Base URL 或完整 Chat Completions URL；
@@ -74,15 +75,17 @@ Prompt Jury 尚未上架 Chrome 应用商店或 Microsoft Edge 加载项商店�
 4. 根据需要调整六项评分权重，并确保总和为 100%；
 5. 点击“保存 Judge 配置”，并允许扩展访问该 API 地址。
 
-Judge 配置保存在浏览器本地。API Key 不会写入运行历史或导出文件；运行 Judge 或生成综合答案时，当前 Prompt 和候选回答会发送到用户配置的 API。
+API Judge 配置保存在浏览器本地，API Key 不会写入运行历史或导出文件。使用 ChatGPT Web Judge 评审时不需要 API 配置，但当前综合答案功能仍使用已配置的 API。
 
 ### 5. 运行评审与生成综合答案
 
 1. 确保当前 Evaluation Run 至少成功收集两个回答；
-2. 点击“运行 Judge”，等待匿名评审完成；
-3. 查看各回答的排名、评分、优缺点、风险、共识和分歧；
-4. 选择一种综合方式并点击“生成综合答案”；
-5. 可以依次生成不同方式的综合答案，已有结果不会被覆盖，并会随当前运行一同保存在本地。
+2. 在 AI Judge 区域选择“OpenAI-compatible API”或“ChatGPT 临时聊天”；
+3. 使用 Web Judge 时，请保持一个已登录的 ChatGPT 标签页打开；Prompt Jury 会创建独立临时标签，并在评审后自动关闭；
+4. 点击“运行 Judge”，等待匿名评审完成；
+5. 查看各回答的排名、评分、优缺点、风险、共识和分歧；
+6. 选择一种综合方式并点击“生成综合答案”；
+7. Judge 结果和不同综合答案都会追加保存，不会覆盖此前结果。
 
 ## 开发
 
@@ -120,7 +123,7 @@ Side Panel 始终显示四个平台的检测结果：`not_open` 表示没有匹�
 
 回答等待时长默认为 180 秒；考虑到 Kimi 深度思考可能耗时更久，Kimi Adapter 的默认等待时长为 300 秒。轮询间隔保持较短，以便回答完成后及时返回。
 
-ChatGPT 的联网搜索回答可能先渲染引用来源、暂停后再补充正文，因此需要文本连续稳定约 10 秒并经过 1.5 秒缓冲后才会采集。
+ChatGPT 的联网搜索回答可能先渲染引用来源、暂停后再补充正文。在当前 conversation-turn UI 中，Prompt Jury 必须等待本轮回答出现最终操作按钮，再经过 3 秒缓冲后采集。仅对于完全没有标准 conversation-turn 结构的旧版 UI，才使用文本连续稳定约 20 秒作为兜底。
 
 ## 验证消息链路
 
@@ -138,4 +141,4 @@ ChatGPT 的联网搜索回答可能先渲染引用来源、暂停后再补充正
 - `src/storage/`：IndexedDB 封装；
 - `tests/unit/`：Vitest 单元测试。
 
-扩展不依赖自建后端，不读取或上传 Cookie，也不会把 Prompt 和回答写入控制台。Manifest 的固定 `host_permissions` 仅覆盖当前支持的 ChatGPT、Gemini、Kimi 和豆包页面。配置 OpenAI-compatible Judge 时，扩展会请求对应 API 地址的可选 Host Permission；只有运行 Judge 或生成综合答案时，当前 Prompt 和候选回答才会发送到用户配置的 API。API Key 与运行历史仍仅保存在浏览器本地，不会写入导出文件。
+扩展不依赖自建后端，不读取或上传 Cookie，也不会把 Prompt 和回答写入控制台。Manifest 的固定 `host_permissions` 仅覆盖当前支持的 ChatGPT、Gemini、Kimi 和豆包页面。配置 OpenAI-compatible Judge 时，扩展会请求对应 API 地址的可选 Host Permission。API Judge 和综合答案会把当前 Prompt 与候选回答发送到所配置的 API；ChatGPT Web Judge 则通过扩展专属的临时聊天发送匿名评审 Prompt。API Key 与运行历史仍仅保存在浏览器本地，不会写入导出文件。

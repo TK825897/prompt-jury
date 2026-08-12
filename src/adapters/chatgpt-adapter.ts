@@ -7,7 +7,11 @@ import type {
 } from "./types";
 
 const selectors = {
-  prompt: ["#prompt-textarea", "textarea[data-id='root']", "textarea[placeholder]"],
+  prompt: [
+    "#prompt-textarea",
+    "textarea[data-id='root']",
+    "textarea[placeholder]",
+  ],
   submit: [
     "button[data-testid='send-button']",
     "button[aria-label*='Send']",
@@ -15,8 +19,12 @@ const selectors = {
   ],
   stop: [
     "button[data-testid='stop-button']",
+    "button[data-testid='stop-generating-button']",
+    "button[data-testid*='stop' i]",
     "button[aria-label*='Stop']",
     "button[aria-label*='停止']",
+    "button[title*='Stop' i]",
+    "button[title*='停止']",
   ],
   answer: [
     "article[data-testid^='conversation-turn'] [data-message-author-role='assistant'] .markdown",
@@ -24,10 +32,18 @@ const selectors = {
     "[data-message-author-role='assistant']",
     "article[data-testid^='conversation-turn'] [data-message-author-role='assistant']",
   ],
+  complete: [
+    "button[data-testid='copy-turn-action-button']",
+    "button[aria-label*='Copy response' i]",
+    "button[aria-label*='复制回复']",
+    "button[aria-label*='複製回覆']",
+  ],
   login: ["a[href*='auth/login']", "button[data-testid='login-button']"],
 } as const;
 
-function firstElement<T extends Element>(candidates: readonly string[]): T | null {
+function firstElement<T extends Element>(
+  candidates: readonly string[],
+): T | null {
   for (const selector of candidates) {
     const element = document.querySelector<T>(selector);
     if (element) return element;
@@ -35,7 +51,9 @@ function firstElement<T extends Element>(candidates: readonly string[]): T | nul
   return null;
 }
 
-function lastElement<T extends Element>(candidates: readonly string[]): T | null {
+function lastElement<T extends Element>(
+  candidates: readonly string[],
+): T | null {
   for (const selector of candidates) {
     const elements = document.querySelectorAll<T>(selector);
     if (elements.length > 0) return elements.item(elements.length - 1);
@@ -46,17 +64,37 @@ function lastElement<T extends Element>(candidates: readonly string[]): T | null
 function answerElements(): HTMLElement[] {
   const elements = new Set<HTMLElement>();
   for (const selector of selectors.answer) {
-    document.querySelectorAll<HTMLElement>(selector).forEach((element) => elements.add(element));
+    document
+      .querySelectorAll<HTMLElement>(selector)
+      .forEach((element) => elements.add(element));
   }
   return [...elements].sort((left, right) =>
-    left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING
+      ? -1
+      : 1,
+  );
+}
+
+function hasCompletionControl(answer: HTMLElement): boolean {
+  const turn = answer.closest<HTMLElement>(
+    "[data-testid^='conversation-turn']",
+  );
+  if (!turn) return false;
+  return selectors.complete.some((selector) =>
+    Boolean(turn.querySelector(selector)),
   );
 }
 
 function inputText(element: HTMLElement, prompt: string): void {
   element.focus();
-  if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
-    const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  if (
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLInputElement
+  ) {
+    const prototype =
+      element instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
     setter?.call(element, prompt);
     element.dispatchEvent(new Event("input", { bubbles: true }));
@@ -65,7 +103,13 @@ function inputText(element: HTMLElement, prompt: string): void {
   }
 
   element.textContent = prompt;
-  element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: prompt }));
+  element.dispatchEvent(
+    new InputEvent("input", {
+      bubbles: true,
+      inputType: "insertText",
+      data: prompt,
+    }),
+  );
 }
 
 export class ChatGPTAdapter implements WebLLMAdapter {
@@ -76,23 +120,33 @@ export class ChatGPTAdapter implements WebLLMAdapter {
   private changedAnswers(): HTMLElement[] {
     return answerElements().filter((element) => {
       const previousText = this.answerSnapshotsBeforeSend.get(element);
-      return previousText === undefined || previousText !== element.innerText.trim();
+      return (
+        previousText === undefined || previousText !== element.innerText.trim()
+      );
     });
   }
 
   private bestAnswer(elements: HTMLElement[]): HTMLElement | undefined {
     return elements.reduce<HTMLElement | undefined>((best, candidate) => {
       if (!best) return candidate;
-      const difference = candidate.innerText.trim().length - best.innerText.trim().length;
+      const difference =
+        candidate.innerText.trim().length - best.innerText.trim().length;
       if (difference !== 0) return difference > 0 ? candidate : best;
-      return best.compareDocumentPosition(candidate) & Node.DOCUMENT_POSITION_FOLLOWING ? candidate : best;
+      return best.compareDocumentPosition(candidate) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+        ? candidate
+        : best;
     }, undefined);
   }
 
   matches(url: string): boolean {
     try {
       const host = new URL(url).hostname.toLowerCase();
-      return host === "chatgpt.com" || host.endsWith(".chatgpt.com") || host === "chat.openai.com";
+      return (
+        host === "chatgpt.com" ||
+        host.endsWith(".chatgpt.com") ||
+        host === "chat.openai.com"
+      );
     } catch {
       return false;
     }
@@ -100,10 +154,17 @@ export class ChatGPTAdapter implements WebLLMAdapter {
 
   async detectPageState(): Promise<PageState> {
     const url = location.href;
-    if (!this.matches(url)) return { providerId: this.id, status: "not_open", url };
-    if (firstElement(selectors.login)) return { providerId: this.id, status: "login_required", url };
+    if (!this.matches(url))
+      return { providerId: this.id, status: "not_open", url };
+    if (firstElement(selectors.login))
+      return { providerId: this.id, status: "login_required", url };
     const status = await this.detectGenerationState();
-    return { providerId: this.id, status, url, conversationId: location.pathname.split("/c/")[1]?.split("/")[0] };
+    return {
+      providerId: this.id,
+      status,
+      url,
+      conversationId: location.pathname.split("/c/")[1]?.split("/")[0],
+    };
   }
 
   async findPromptInput(): Promise<HTMLElement | null> {
@@ -112,8 +173,14 @@ export class ChatGPTAdapter implements WebLLMAdapter {
 
   async setPrompt(prompt: string): Promise<void> {
     const input = await this.findPromptInput();
-    if (!input) throw new AdapterError("INPUT_NOT_FOUND", "ChatGPT prompt input was not found.");
-    this.answerSnapshotsBeforeSend = new Map(answerElements().map((element) => [element, element.innerText.trim()]));
+    if (!input)
+      throw new AdapterError(
+        "INPUT_NOT_FOUND",
+        "ChatGPT prompt input was not found.",
+      );
+    this.answerSnapshotsBeforeSend = new Map(
+      answerElements().map((element) => [element, element.innerText.trim()]),
+    );
     inputText(input, prompt);
   }
 
@@ -125,8 +192,18 @@ export class ChatGPTAdapter implements WebLLMAdapter {
       return;
     }
     const input = await this.findPromptInput();
-    if (!input) throw new AdapterError("SUBMIT_NOT_FOUND", "ChatGPT send control was not found.");
-    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+    if (!input)
+      throw new AdapterError(
+        "SUBMIT_NOT_FOUND",
+        "ChatGPT send control was not found.",
+      );
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        bubbles: true,
+      }),
+    );
   }
 
   async detectGenerationState(): Promise<ProviderStatus> {
@@ -135,7 +212,9 @@ export class ChatGPTAdapter implements WebLLMAdapter {
     return (await this.findPromptInput()) ? "ready" : "error";
   }
 
-  async waitForCompletion(options: { timeoutMs?: number; pollingIntervalMs?: number } = {}): Promise<void> {
+  async waitForCompletion(
+    options: { timeoutMs?: number; pollingIntervalMs?: number } = {},
+  ): Promise<void> {
     const timeoutMs = options.timeoutMs ?? 180_000;
     const pollingIntervalMs = options.pollingIntervalMs ?? 500;
     const deadline = Date.now() + timeoutMs;
@@ -143,11 +222,21 @@ export class ChatGPTAdapter implements WebLLMAdapter {
     let previousText = "";
     while (Date.now() < deadline) {
       const changed = this.changedAnswers();
-      const latestText = this.bestAnswer(changed)?.innerText.trim() ?? "";
+      const latestAnswer = this.bestAnswer(changed);
+      const latestText = latestAnswer?.innerText.trim() ?? "";
       if (!firstElement(selectors.stop) && latestText) {
         stableChecks = latestText === previousText ? stableChecks + 1 : 0;
-        if (stableChecks >= 20) {
-          await new Promise((resolve) => setTimeout(resolve, 1_500));
+        const completedByTurnAction = Boolean(
+          latestAnswer &&
+          hasCompletionControl(latestAnswer) &&
+          stableChecks >= 2,
+        );
+        // Temporary Chat can omit the normal turn action toolbar, including
+        // the copy button. A response that is no longer streaming and has
+        // stayed unchanged for 15 seconds is therefore also complete.
+        const completedByStableFallback = stableChecks >= 30;
+        if (completedByTurnAction || completedByStableFallback) {
+          await new Promise((resolve) => setTimeout(resolve, 3_000));
           return;
         }
         previousText = latestText;
@@ -158,16 +247,28 @@ export class ChatGPTAdapter implements WebLLMAdapter {
   }
 
   async extractLatestResponse(): Promise<NormalizedResponse> {
-    const answer = this.bestAnswer(this.changedAnswers()) ?? lastElement<HTMLElement>(selectors.answer);
-    if (!answer) throw new AdapterError("RESPONSE_NOT_FOUND", "No ChatGPT response was found.");
+    const answer =
+      this.bestAnswer(this.changedAnswers()) ??
+      lastElement<HTMLElement>(selectors.answer);
+    if (!answer)
+      throw new AdapterError(
+        "RESPONSE_NOT_FOUND",
+        "No ChatGPT response was found.",
+      );
     const codeBlocks = [...answer.querySelectorAll("pre code")].map((node) => ({
-      language: [...node.classList].find((name) => name.startsWith("language-"))?.slice(9),
+      language: [...node.classList]
+        .find((name) => name.startsWith("language-"))
+        ?.slice(9),
       code: node.textContent ?? "",
     }));
     const tables = [...answer.querySelectorAll("table")].map((table) => ({
-      headers: [...table.querySelectorAll("thead th")].map((cell) => cell.textContent?.trim() ?? ""),
+      headers: [...table.querySelectorAll("thead th")].map(
+        (cell) => cell.textContent?.trim() ?? "",
+      ),
       rows: [...table.querySelectorAll("tbody tr")].map((row) =>
-        [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? ""),
+        [...row.querySelectorAll("td")].map(
+          (cell) => cell.textContent?.trim() ?? "",
+        ),
       ),
     }));
     return {
